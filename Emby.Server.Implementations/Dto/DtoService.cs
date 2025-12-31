@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Extensions;
@@ -152,8 +154,13 @@ namespace Emby.Server.Implementations.Dto
 
         private ILiveTvManager LivetvManager => _livetvManagerFactory.Value;
 
-        /// <inheritdoc />
         public IReadOnlyList<BaseItemDto> GetBaseItemDtos(IReadOnlyList<BaseItem> items, DtoOptions options, User? user = null, BaseItem? owner = null)
+        {
+            return this.GetBaseItemDtosAsync(items, options, user, owner).GetAwaiter().GetResult();
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<BaseItemDto>> GetBaseItemDtosAsync(IReadOnlyList<BaseItem> items, DtoOptions options, User? user = null, BaseItem? owner = null, CancellationToken token = default)
         {
             var accessibleItems = user is null ? items : items.Where(x => x.IsVisible(user)).ToList();
             var returnItems = new BaseItemDto[accessibleItems.Count];
@@ -184,7 +191,7 @@ namespace Emby.Server.Implementations.Dto
 
             if (programTuples is not null)
             {
-                LivetvManager.AddInfoToProgramDto(programTuples, options.Fields, user).GetAwaiter().GetResult();
+                await LivetvManager.AddInfoToProgramDto(programTuples, options.Fields, user).ConfigureAwait(false);
             }
 
             if (channelTuples is not null)
@@ -197,6 +204,11 @@ namespace Emby.Server.Implementations.Dto
 
         public BaseItemDto GetBaseItemDto(BaseItem item, DtoOptions options, User? user = null, BaseItem? owner = null)
         {
+            return this.GetBaseItemDtoAsync(item, options, user, owner).GetAwaiter().GetResult();
+        }
+
+        public async Task<BaseItemDto> GetBaseItemDtoAsync(BaseItem item, DtoOptions options, User? user = null, BaseItem? owner = null, CancellationToken token = default)
+        {
             var dto = GetBaseItemDtoInternal(item, options, user, owner);
             if (item is LiveTvChannel tvChannel)
             {
@@ -204,7 +216,7 @@ namespace Emby.Server.Implementations.Dto
             }
             else if (item is LiveTvProgram)
             {
-                LivetvManager.AddInfoToProgramDto(new[] { (item, dto) }, options.Fields, user).GetAwaiter().GetResult();
+                await LivetvManager.AddInfoToProgramDto(new[] { (item, dto) }, options.Fields, user).ConfigureAwait(false);
             }
 
             if (options.ContainsField(ItemFields.ItemCounts))
@@ -369,6 +381,12 @@ namespace Emby.Server.Implementations.Dto
             }
 
             return dto;
+        }
+
+        public Task<BaseItemDto> GetItemByNameDtoAsync(BaseItem item, DtoOptions options, List<BaseItem>? taggedItems, User? user = null, CancellationToken token = default)
+        {
+            var result = this.GetItemByNameDto(item, options, taggedItems, user);
+            return Task.FromResult(result);
         }
 
         private void SetItemByNameInfo(BaseItemDto dto, User? user)
