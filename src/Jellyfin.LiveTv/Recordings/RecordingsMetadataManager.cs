@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using Jellyfin.Data.Enums;
@@ -53,8 +54,9 @@ public class RecordingsMetadataManager
     /// <param name="timer">The recording timer.</param>
     /// <param name="recordingPath">The recording path.</param>
     /// <param name="seriesPath">The series path.</param>
+    /// <param name="token">The cancellation token.</param>
     /// <returns>A task representing the metadata saving.</returns>
-    public async Task SaveRecordingMetadata(TimerInfo timer, string recordingPath, string? seriesPath)
+    public async Task SaveRecordingMetadataAsync(TimerInfo timer, string recordingPath, string? seriesPath, CancellationToken token = default)
     {
         try
         {
@@ -105,15 +107,15 @@ public class RecordingsMetadataManager
                     ArgumentNullException.ThrowIfNull(seriesPath);
 
                     await SaveSeriesNfoAsync(timer, seriesPath).ConfigureAwait(false);
-                    await SaveVideoNfoAsync(timer, recordingPath, program, false).ConfigureAwait(false);
+                    await SaveVideoNfoAsync(timer, recordingPath, program, false, token).ConfigureAwait(false);
                 }
                 else if (!timer.IsMovie || timer.IsSports || timer.IsNews)
                 {
-                    await SaveVideoNfoAsync(timer, recordingPath, program, true).ConfigureAwait(false);
+                    await SaveVideoNfoAsync(timer, recordingPath, program, true, token).ConfigureAwait(false);
                 }
                 else
                 {
-                    await SaveVideoNfoAsync(timer, recordingPath, program, false).ConfigureAwait(false);
+                    await SaveVideoNfoAsync(timer, recordingPath, program, false, token).ConfigureAwait(false);
                 }
             }
 
@@ -193,7 +195,7 @@ public class RecordingsMetadataManager
         }
     }
 
-    private async Task SaveVideoNfoAsync(TimerInfo timer, string recordingPath, BaseItem item, bool lockData)
+    private async Task SaveVideoNfoAsync(TimerInfo timer, string recordingPath, BaseItem item, bool lockData, CancellationToken token = default)
     {
         var nfoPath = Path.ChangeExtension(recordingPath, ".nfo");
 
@@ -316,7 +318,9 @@ public class RecordingsMetadataManager
                     await writer.WriteElementStringAsync(null, "genre", null, genre).ConfigureAwait(false);
                 }
 
-                var people = item.Id.IsEmpty() ? new List<PersonInfo>() : _libraryManager.GetPeople(item);
+                var people = item.Id.IsEmpty()
+                    ? []
+                    : await _libraryManager.GetPeopleAsync(item, token).ConfigureAwait(false);
 
                 var directors = people
                     .Where(i => i.IsType(PersonKind.Director))

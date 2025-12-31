@@ -354,7 +354,7 @@ public sealed class RecordingsManager : IRecordingsManager, IDisposable
                 timer.Status = RecordingStatus.InProgress;
                 _timerManager.AddOrUpdate(timer, false);
 
-                await _recordingsMetadataManager.SaveRecordingMetadata(timer, recordingPath, seriesPath).ConfigureAwait(false);
+                await _recordingsMetadataManager.SaveRecordingMetadataAsync(timer, recordingPath, seriesPath).ConfigureAwait(false);
                 await CreateRecordingFolders().ConfigureAwait(false);
 
                 TriggerRefresh(recordingPath);

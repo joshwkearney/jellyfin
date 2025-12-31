@@ -1,6 +1,8 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Api.Extensions;
 using Jellyfin.Api.Helpers;
 using Jellyfin.Api.ModelBinders;
@@ -60,11 +62,12 @@ public class PersonsController : BaseJellyfinApiController
     /// <param name="appearsInItemId">Optional. If specified, person results will be filtered on items related to said persons.</param>
     /// <param name="userId">User id.</param>
     /// <param name="enableImages">Optional, include image information in output.</param>
+    /// <param name="token">The cancellation token.</param>
     /// <response code="200">Persons returned.</response>
     /// <returns>An <see cref="OkResult"/> containing the queryresult of persons.</returns>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<QueryResult<BaseItemDto>> GetPersons(
+    public async Task<ActionResult<QueryResult<BaseItemDto>>> GetPersons(
         [FromQuery] int? limit,
         [FromQuery] string? searchTerm,
         [FromQuery, ModelBinder(typeof(CommaDelimitedCollectionModelBinder))] ItemFields[] fields,
@@ -77,7 +80,8 @@ public class PersonsController : BaseJellyfinApiController
         [FromQuery, ModelBinder(typeof(CommaDelimitedCollectionModelBinder))] string[] personTypes,
         [FromQuery] Guid? appearsInItemId,
         [FromQuery] Guid? userId,
-        [FromQuery] bool? enableImages = true)
+        [FromQuery] bool? enableImages = true,
+        CancellationToken token = default)
     {
         userId = RequestHelpers.GetUserId(User, userId);
         var dtoOptions = new DtoOptions { Fields = fields }
@@ -88,16 +92,17 @@ public class PersonsController : BaseJellyfinApiController
             : _userManager.GetUserById(userId.Value);
 
         var isFavoriteInFilters = filters.Any(f => f == ItemFilter.IsFavorite);
-        var peopleItems = _libraryManager.GetPeopleItems(new InternalPeopleQuery(
-            personTypes,
-            excludePersonTypes)
+
+        var peopelItemsQuery = new InternalPeopleQuery(personTypes, excludePersonTypes)
         {
             NameContains = searchTerm,
             User = user,
             IsFavorite = !isFavorite.HasValue && isFavoriteInFilters ? true : isFavorite,
             AppearsInItemId = appearsInItemId ?? Guid.Empty,
             Limit = limit ?? 0
-        });
+        };
+
+        var peopleItems = await _libraryManager.GetPeopleItemsAsync(peopelItemsQuery, token).ConfigureAwait(false);
 
         return new QueryResult<BaseItemDto>(
             peopleItems

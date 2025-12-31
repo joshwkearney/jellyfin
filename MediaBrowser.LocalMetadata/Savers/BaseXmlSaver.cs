@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
-using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -129,7 +128,7 @@ namespace MediaBrowser.LocalMetadata.Savers
 
                     if (baseItem is not null)
                     {
-                        await AddCommonNodesAsync(baseItem, writer).ConfigureAwait(false);
+                        await AddCommonNodesAsync(baseItem, writer, cancellationToken).ConfigureAwait(false);
                     }
 
                     await WriteCustomElementsAsync(item, writer).ConfigureAwait(false);
@@ -171,8 +170,9 @@ namespace MediaBrowser.LocalMetadata.Savers
         /// </summary>
         /// <param name="item">The item.</param>
         /// <param name="writer">The xml writer.</param>
+        /// <param name="token">The cancellation token.</param>
         /// <returns>The task object representing the asynchronous operation.</returns>
-        private async Task AddCommonNodesAsync(BaseItem item, XmlWriter writer)
+        private async Task AddCommonNodesAsync(BaseItem item, XmlWriter writer, CancellationToken token)
         {
             if (!string.IsNullOrEmpty(item.OfficialRating))
             {
@@ -365,7 +365,7 @@ namespace MediaBrowser.LocalMetadata.Savers
                 await writer.WriteEndElementAsync().ConfigureAwait(false);
             }
 
-            var people = LibraryManager.GetPeople(item);
+            var people = await LibraryManager.GetPeopleAsync(item, token).ConfigureAwait(false);
 
             if (people.Count > 0)
             {

@@ -66,13 +66,14 @@ public class ItemUpdateController : BaseJellyfinApiController
     /// </summary>
     /// <param name="itemId">The item id.</param>
     /// <param name="request">The new item properties.</param>
+    /// <param name="token">The cancellation token.</param>
     /// <response code="204">Item updated.</response>
     /// <response code="404">Item not found.</response>
     /// <returns>An <see cref="NoContentResult"/> on success, or a <see cref="NotFoundResult"/> if the item could not be found.</returns>
     [HttpPost("Items/{itemId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> UpdateItem([FromRoute, Required] Guid itemId, [FromBody, Required] BaseItemDto request)
+    public async Task<ActionResult> UpdateItem([FromRoute, Required] Guid itemId, [FromBody, Required] BaseItemDto request, CancellationToken token = default)
     {
         var item = _libraryManager.GetItemById<BaseItem>(itemId, User.GetUserId());
         if (item is null)
@@ -92,14 +93,15 @@ public class ItemUpdateController : BaseJellyfinApiController
         // Do this first so that metadata savers can pull the updates from the database.
         if (request.People is not null)
         {
-            _libraryManager.UpdatePeople(
+            await _libraryManager.UpdatePeopleAsync(
                 item,
                 request.People.Select(x => new PersonInfo
                 {
                     Name = x.Name,
                     Role = x.Role,
                     Type = x.Type
-                }).ToList());
+                }).ToList(),
+                token).ConfigureAwait(false);
         }
 
         await UpdateItem(request, item).ConfigureAwait(false);

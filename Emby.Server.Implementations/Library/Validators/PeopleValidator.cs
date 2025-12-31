@@ -49,7 +49,7 @@ public class PeopleValidator
     /// <returns>Task.</returns>
     public async Task ValidatePeople(CancellationToken cancellationToken, IProgress<double> progress)
     {
-        var people = _libraryManager.GetPeopleNames(new InternalPeopleQuery());
+        var people = await _libraryManager.GetPeopleNamesAsync(new InternalPeopleQuery(), cancellationToken).ConfigureAwait(false);
 
         var numComplete = 0;
 

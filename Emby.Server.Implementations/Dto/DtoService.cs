@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Extensions;
@@ -163,7 +165,7 @@ namespace Emby.Server.Implementations.Dto
             for (int index = 0; index < accessibleItems.Count; index++)
             {
                 var item = accessibleItems[index];
-                var dto = GetBaseItemDtoInternal(item, options, user, owner);
+                var dto = GetBaseItemDtoInternalAsync(item, options, user, owner).GetAwaiter().GetResult();
 
                 if (item is LiveTvChannel tvChannel)
                 {
@@ -197,7 +199,8 @@ namespace Emby.Server.Implementations.Dto
 
         public BaseItemDto GetBaseItemDto(BaseItem item, DtoOptions options, User? user = null, BaseItem? owner = null)
         {
-            var dto = GetBaseItemDtoInternal(item, options, user, owner);
+            var dto = GetBaseItemDtoInternalAsync(item, options, user, owner).GetAwaiter().GetResult();
+
             if (item is LiveTvChannel tvChannel)
             {
                 LivetvManager.AddChannelInfo(new[] { (dto, tvChannel) }, options, user);
@@ -215,7 +218,7 @@ namespace Emby.Server.Implementations.Dto
             return dto;
         }
 
-        private BaseItemDto GetBaseItemDtoInternal(BaseItem item, DtoOptions options, User? user = null, BaseItem? owner = null)
+        private async Task<BaseItemDto> GetBaseItemDtoInternalAsync(BaseItem item, DtoOptions options, User? user = null, BaseItem? owner = null, CancellationToken token = default)
         {
             var dto = new BaseItemDto
             {
@@ -229,7 +232,7 @@ namespace Emby.Server.Implementations.Dto
 
             if (options.ContainsField(ItemFields.People))
             {
-                AttachPeople(dto, item, user);
+                await AttachPeopleAsync(dto, item, user, token).ConfigureAwait(false);
             }
 
             if (options.ContainsField(ItemFields.PrimaryImageAspectRatio))
@@ -359,7 +362,7 @@ namespace Emby.Server.Implementations.Dto
         /// Some callers already have the counts extracted so no reason to retrieve them again.
         public BaseItemDto GetItemByNameDto(BaseItem item, DtoOptions options, List<BaseItem>? taggedItems, User? user = null)
         {
-            var dto = GetBaseItemDtoInternal(item, options, user);
+            var dto = GetBaseItemDtoInternalAsync(item, options, user).GetAwaiter().GetResult();
 
             if (options.ContainsField(ItemFields.ItemCounts)
                 && taggedItems is not null
@@ -602,12 +605,16 @@ namespace Emby.Server.Implementations.Dto
         /// <param name="dto">The dto.</param>
         /// <param name="item">The item.</param>
         /// <param name="user">The requesting user.</param>
-        private void AttachPeople(BaseItemDto dto, BaseItem item, User? user = null)
+        /// <param name="token">The <see cref="CancellationToken"/>.</param>
+        private async Task AttachPeopleAsync(BaseItemDto dto, BaseItem item, User? user = null, CancellationToken token = default)
         {
+            var allPeople = await _libraryManager.GetPeopleAsync(item, token).ConfigureAwait(false);
+
             // Ordering by person type to ensure actors and artists are at the front.
             // This is taking advantage of the fact that they both begin with A
             // This should be improved in the future
-            var people = _libraryManager.GetPeople(item).OrderBy(i => i.SortOrder ?? int.MaxValue)
+            var people = allPeople
+                .OrderBy(i => i.SortOrder ?? int.MaxValue)
                 .ThenBy(i =>
                 {
                     if (i.IsType(PersonKind.Actor))

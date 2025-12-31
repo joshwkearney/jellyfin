@@ -222,7 +222,7 @@ public class AlbumMetadataService : MetadataService<MusicAlbum, AlbumInfo>
                 }
             }
 
-            LibraryManager.UpdatePeople(item, people);
+            LibraryManager.UpdatePeopleAsync(item, people);
         }
     }
 

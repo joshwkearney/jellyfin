@@ -191,7 +191,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
             using (var memoryStream = new MemoryStream())
             {
-                Save(item, memoryStream, path);
+                await SaveAsync(item, memoryStream, path, cancellationToken).ConfigureAwait(false);
 
                 memoryStream.Position = 0;
 
@@ -242,7 +242,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
             }
         }
 
-        private void Save(BaseItem item, Stream stream, string xmlPath)
+        private async Task SaveAsync(BaseItem item, Stream stream, string xmlPath, CancellationToken token)
         {
             var settings = new XmlWriterSettings
             {
@@ -255,15 +255,14 @@ namespace MediaBrowser.XbmcMetadata.Savers
             {
                 var root = GetRootElementName(item);
 
-                writer.WriteStartDocument(true);
-
-                writer.WriteStartElement(root);
+                await writer.WriteStartDocumentAsync(true).ConfigureAwait(false);
+                await writer.WriteStartElementAsync(null, root, null).ConfigureAwait(false);
 
                 var baseItem = item;
 
                 if (baseItem is not null)
                 {
-                    AddCommonNodes(baseItem, writer, LibraryManager, UserManager, UserDataManager, ConfigurationManager);
+                    await AddCommonNodesAsync(baseItem, writer, LibraryManager, UserManager, UserDataManager, ConfigurationManager, token).ConfigureAwait(false);
                 }
 
                 WriteCustomElements(item, writer);
@@ -290,9 +289,8 @@ namespace MediaBrowser.XbmcMetadata.Savers
                     Logger.LogError(ex, "Error reading existing nfo");
                 }
 
-                writer.WriteEndElement();
-
-                writer.WriteEndDocument();
+                await writer.WriteEndElementAsync().ConfigureAwait(false);
+                await writer.WriteEndDocumentAsync().ConfigureAwait(false);
             }
         }
 
@@ -429,13 +427,14 @@ namespace MediaBrowser.XbmcMetadata.Savers
         /// <summary>
         /// Adds the common nodes.
         /// </summary>
-        private void AddCommonNodes(
+        private async Task AddCommonNodesAsync(
             BaseItem item,
             XmlWriter writer,
             ILibraryManager libraryManager,
             IUserManager userManager,
             IUserDataManager userDataRepo,
-            IServerConfigurationManager config)
+            IServerConfigurationManager config,
+            CancellationToken token)
         {
             var writtenProviderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -447,44 +446,44 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
             if (item is MusicArtist)
             {
-                writer.WriteElementString("biography", overview);
+                await writer.WriteElementStringAsync(null, "biography", null, overview).ConfigureAwait(false);
             }
             else if (item is MusicAlbum)
             {
-                writer.WriteElementString("review", overview);
+                await writer.WriteElementStringAsync(null, "review", null, overview).ConfigureAwait(false);
             }
             else
             {
-                writer.WriteElementString("plot", overview);
+                await writer.WriteElementStringAsync(null, "plot", null, overview).ConfigureAwait(false);
             }
 
             if (item is not Video)
             {
-                writer.WriteElementString("outline", overview);
+                await writer.WriteElementStringAsync(null, "outline", null, overview).ConfigureAwait(false);
             }
 
             if (!string.IsNullOrWhiteSpace(item.CustomRating))
             {
-                writer.WriteElementString("customrating", item.CustomRating);
+                await writer.WriteElementStringAsync(null, "customrating", null, item.CustomRating).ConfigureAwait(false);
             }
 
-            writer.WriteElementString("lockdata", item.IsLocked.ToString(CultureInfo.InvariantCulture).ToLowerInvariant());
+            await writer.WriteElementStringAsync(null, "lockdata", null, item.IsLocked.ToString(CultureInfo.InvariantCulture).ToLowerInvariant()).ConfigureAwait(false);
 
             if (item.LockedFields.Length > 0)
             {
-                writer.WriteElementString("lockedfields", string.Join('|', item.LockedFields));
+                await writer.WriteElementStringAsync(null, "lockedfields", null, string.Join('|', item.LockedFields)).ConfigureAwait(false);
             }
 
-            writer.WriteElementString("dateadded", item.DateCreated.ToString(DateAddedFormat, CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "dateadded", null, item.DateCreated.ToString(DateAddedFormat, CultureInfo.InvariantCulture)).ConfigureAwait(false);
 
-            writer.WriteElementString("title", item.Name ?? string.Empty);
+            await writer.WriteElementStringAsync(null, "title", null, item.Name ?? string.Empty).ConfigureAwait(false);
 
             if (!string.IsNullOrWhiteSpace(item.OriginalTitle))
             {
-                writer.WriteElementString("originaltitle", item.OriginalTitle);
+                await writer.WriteElementStringAsync(null, "originaltitle", null, item.OriginalTitle).ConfigureAwait(false);
             }
 
-            var people = libraryManager.GetPeople(item);
+            var people = await libraryManager.GetPeopleAsync(item, token).ConfigureAwait(false);
 
             var directors = people
                 .Where(i => i.IsType(PersonKind.Director))
@@ -495,7 +494,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
             foreach (var person in directors)
             {
-                writer.WriteElementString("director", person);
+                await writer.WriteElementStringAsync(null, "director", null, person ?? string.Empty).ConfigureAwait(false);
             }
 
             var writers = people
@@ -507,49 +506,49 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
             foreach (var person in writers)
             {
-                writer.WriteElementString("writer", person);
+                await writer.WriteElementStringAsync(null, "writer", null, person ?? string.Empty).ConfigureAwait(false);
             }
 
             foreach (var person in writers)
             {
-                writer.WriteElementString("credits", person);
+                await writer.WriteElementStringAsync(null, "credits", null, person ?? string.Empty).ConfigureAwait(false);
             }
 
             foreach (var trailer in item.RemoteTrailers.OrderBy(t => t.Url?.Trim()))
             {
-                writer.WriteElementString("trailer", GetOutputTrailerUrl(trailer.Url));
+                await writer.WriteElementStringAsync(null, "trailer", null, GetOutputTrailerUrl(trailer.Url)).ConfigureAwait(false);
             }
 
             if (item.CommunityRating.HasValue)
             {
-                writer.WriteElementString("rating", item.CommunityRating.Value.ToString(CultureInfo.InvariantCulture));
+                await writer.WriteElementStringAsync(null, "rating", null, item.CommunityRating.Value.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
             }
 
             if (item.ProductionYear.HasValue)
             {
-                writer.WriteElementString("year", item.ProductionYear.Value.ToString(CultureInfo.InvariantCulture));
+                await writer.WriteElementStringAsync(null, "year", null, item.ProductionYear.Value.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
             }
 
             var forcedSortName = item.ForcedSortName;
             if (!string.IsNullOrEmpty(forcedSortName))
             {
-                writer.WriteElementString("sorttitle", forcedSortName);
+                await writer.WriteElementStringAsync(null, "sorttitle", null, forcedSortName).ConfigureAwait(false);
             }
 
             if (!string.IsNullOrEmpty(item.OfficialRating))
             {
-                writer.WriteElementString("mpaa", item.OfficialRating);
+                await writer.WriteElementStringAsync(null, "mpaa", null, item.OfficialRating).ConfigureAwait(false);
             }
 
             if (item is IHasAspectRatio hasAspectRatio
                 && !string.IsNullOrEmpty(hasAspectRatio.AspectRatio))
             {
-                writer.WriteElementString("aspectratio", hasAspectRatio.AspectRatio);
+                await writer.WriteElementStringAsync(null, "aspectratio", null, hasAspectRatio.AspectRatio).ConfigureAwait(false);
             }
 
             if (item.TryGetProviderId(MetadataProvider.Tmdb, out var tmdbCollection))
             {
-                writer.WriteElementString("collectionnumber", tmdbCollection);
+                await writer.WriteElementStringAsync(null, "collectionnumber", null, tmdbCollection).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.TmdbCollection.ToString());
             }
 
@@ -557,11 +556,11 @@ namespace MediaBrowser.XbmcMetadata.Savers
             {
                 if (item is Series)
                 {
-                    writer.WriteElementString("imdb_id", imdb);
+                    await writer.WriteElementStringAsync(null, "imdb_id", null, imdb).ConfigureAwait(false);
                 }
                 else
                 {
-                    writer.WriteElementString("imdbid", imdb);
+                    await writer.WriteElementStringAsync(null, "imdbid", null, imdb).ConfigureAwait(false);
                 }
 
                 writtenProviderIds.Add(MetadataProvider.Imdb.ToString());
@@ -572,25 +571,25 @@ namespace MediaBrowser.XbmcMetadata.Savers
             {
                 if (item.TryGetProviderId(MetadataProvider.Tvdb, out var tvdb))
                 {
-                    writer.WriteElementString("tvdbid", tvdb);
+                    await writer.WriteElementStringAsync(null, "tvdbid", null, tvdb).ConfigureAwait(false);
                     writtenProviderIds.Add(MetadataProvider.Tvdb.ToString());
                 }
             }
 
             if (item.TryGetProviderId(MetadataProvider.Tmdb, out var tmdb))
             {
-                writer.WriteElementString("tmdbid", tmdb);
+                await writer.WriteElementStringAsync(null, "tmdbid", null, tmdb).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.Tmdb.ToString());
             }
 
             if (!string.IsNullOrEmpty(item.PreferredMetadataLanguage))
             {
-                writer.WriteElementString("language", item.PreferredMetadataLanguage);
+                await writer.WriteElementStringAsync(null, "language", null, item.PreferredMetadataLanguage).ConfigureAwait(false);
             }
 
             if (!string.IsNullOrEmpty(item.PreferredMetadataCountryCode))
             {
-                writer.WriteElementString("countrycode", item.PreferredMetadataCountryCode);
+                await writer.WriteElementStringAsync(null, "countrycode", null, item.PreferredMetadataCountryCode).ConfigureAwait(false);
             }
 
             if (item.PremiereDate.HasValue && item is not Episode)
@@ -599,18 +598,25 @@ namespace MediaBrowser.XbmcMetadata.Savers
 
                 if (item is MusicArtist)
                 {
-                    writer.WriteElementString(
+                    await writer.WriteElementStringAsync(
+                        null,
                         "formed",
-                        item.PremiereDate.Value.ToString(formatString, CultureInfo.InvariantCulture));
+                        null,
+                        item.PremiereDate.Value.ToString(formatString, CultureInfo.InvariantCulture)).ConfigureAwait(false);
                 }
                 else
                 {
-                    writer.WriteElementString(
+                    await writer.WriteElementStringAsync(
+                        null,
                         "premiered",
-                        item.PremiereDate.Value.ToString(formatString, CultureInfo.InvariantCulture));
-                    writer.WriteElementString(
+                        null,
+                        item.PremiereDate.Value.ToString(formatString, CultureInfo.InvariantCulture)).ConfigureAwait(false);
+
+                    await writer.WriteElementStringAsync(
+                        null,
                         "releasedate",
-                        item.PremiereDate.Value.ToString(formatString, CultureInfo.InvariantCulture));
+                        null,
+                        item.PremiereDate.Value.ToString(formatString, CultureInfo.InvariantCulture)).ConfigureAwait(false);
                 }
             }
 
@@ -620,24 +626,28 @@ namespace MediaBrowser.XbmcMetadata.Savers
                 {
                     var formatString = options.ReleaseDateFormat;
 
-                    writer.WriteElementString(
+                    await writer.WriteElementStringAsync(
+                        null,
                         "enddate",
-                        item.EndDate.Value.ToString(formatString, CultureInfo.InvariantCulture));
+                        null,
+                        item.EndDate.Value.ToString(formatString, CultureInfo.InvariantCulture)).ConfigureAwait(false);
                 }
             }
 
             if (item.CriticRating.HasValue)
             {
-                writer.WriteElementString(
+                await writer.WriteElementStringAsync(
+                    null,
                     "criticrating",
-                    item.CriticRating.Value.ToString(CultureInfo.InvariantCulture));
+                    null,
+                    item.CriticRating.Value.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
             }
 
             if (item is IHasDisplayOrder hasDisplayOrder)
             {
                 if (!string.IsNullOrEmpty(hasDisplayOrder.DisplayOrder))
                 {
-                    writer.WriteElementString("displayorder", hasDisplayOrder.DisplayOrder);
+                    await writer.WriteElementStringAsync(null, "displayorder", null, hasDisplayOrder.DisplayOrder).ConfigureAwait(false);
                 }
             }
 
@@ -648,88 +658,90 @@ namespace MediaBrowser.XbmcMetadata.Savers
             {
                 var timespan = TimeSpan.FromTicks(runTimeTicks.Value);
 
-                writer.WriteElementString(
+                await writer.WriteElementStringAsync(
+                    null,
                     "runtime",
-                    Convert.ToInt64(timespan.TotalMinutes).ToString(CultureInfo.InvariantCulture));
+                    null,
+                    Convert.ToInt64(timespan.TotalMinutes).ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
             }
 
             if (!string.IsNullOrWhiteSpace(item.Tagline))
             {
-                writer.WriteElementString("tagline", item.Tagline);
+                await writer.WriteElementStringAsync(null, "tagline", null, item.Tagline).ConfigureAwait(false);
             }
 
             foreach (var country in item.ProductionLocations.Trimmed().OrderBy(country => country))
             {
-                writer.WriteElementString("country", country);
+                await writer.WriteElementStringAsync(null, "country", null, country).ConfigureAwait(false);
             }
 
             foreach (var genre in item.Genres.Trimmed().OrderBy(genre => genre))
             {
-                writer.WriteElementString("genre", genre);
+                await writer.WriteElementStringAsync(null, "genre", null, genre).ConfigureAwait(false);
             }
 
             foreach (var studio in item.Studios.Trimmed().OrderBy(studio => studio))
             {
-                writer.WriteElementString("studio", studio);
+                await writer.WriteElementStringAsync(null, "studio", null, studio).ConfigureAwait(false);
             }
 
             foreach (var tag in item.Tags.Trimmed().OrderBy(tag => tag))
             {
                 if (item is MusicAlbum || item is MusicArtist)
                 {
-                    writer.WriteElementString("style", tag);
+                    await writer.WriteElementStringAsync(null, "style", null, tag).ConfigureAwait(false);
                 }
                 else
                 {
-                    writer.WriteElementString("tag", tag);
+                    await writer.WriteElementStringAsync(null, "tag", null, tag).ConfigureAwait(false);
                 }
             }
 
             if (item.TryGetProviderId(MetadataProvider.AudioDbArtist, out var externalId))
             {
-                writer.WriteElementString("audiodbartistid", externalId);
+                await writer.WriteElementStringAsync(null, "audiodbartistid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.AudioDbArtist.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.AudioDbAlbum, out externalId))
             {
-                writer.WriteElementString("audiodbalbumid", externalId);
+                await writer.WriteElementStringAsync(null, "audiodbalbumid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.AudioDbAlbum.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.Zap2It, out externalId))
             {
-                writer.WriteElementString("zap2itid", externalId);
+                await writer.WriteElementStringAsync(null, "zap2itid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.Zap2It.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.MusicBrainzAlbum, out externalId))
             {
-                writer.WriteElementString("musicbrainzalbumid", externalId);
+                await writer.WriteElementStringAsync(null, "musicbrainzalbumid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.MusicBrainzAlbum.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.MusicBrainzAlbumArtist, out externalId))
             {
-                writer.WriteElementString("musicbrainzalbumartistid", externalId);
+                await writer.WriteElementStringAsync(null, "musicbrainzalbumartistid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.MusicBrainzAlbumArtist.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.MusicBrainzArtist, out externalId))
             {
-                writer.WriteElementString("musicbrainzartistid", externalId);
+                await writer.WriteElementStringAsync(null, "musicbrainzartistid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.MusicBrainzArtist.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.MusicBrainzReleaseGroup, out externalId))
             {
-                writer.WriteElementString("musicbrainzreleasegroupid", externalId);
+                await writer.WriteElementStringAsync(null, "musicbrainzreleasegroupid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.MusicBrainzReleaseGroup.ToString());
             }
 
             if (item.TryGetProviderId(MetadataProvider.TvRage, out externalId))
             {
-                writer.WriteElementString("tvrageid", externalId);
+                await writer.WriteElementStringAsync(null, "tvrageid", null, externalId).ConfigureAwait(false);
                 writtenProviderIds.Add(MetadataProvider.TvRage.ToString());
             }
 
@@ -747,7 +759,7 @@ namespace MediaBrowser.XbmcMetadata.Savers
                             XmlConvert.VerifyName(tagName);
                             Logger.LogDebug("Saving custom provider tagname {0}", tagName);
 
-                            writer.WriteElementString(tagName, providerId);
+                            await writer.WriteElementStringAsync(null, tagName, null, providerId).ConfigureAwait(false);
                         }
                         catch (ArgumentException)
                         {
@@ -860,8 +872,8 @@ namespace MediaBrowser.XbmcMetadata.Savers
             if (userdata is not null)
             {
                 writer.WriteElementString(
-                "isuserfavorite",
-                userdata.IsFavorite.ToString(CultureInfo.InvariantCulture).ToLowerInvariant());
+                    "isuserfavorite",
+                    userdata.IsFavorite.ToString(CultureInfo.InvariantCulture).ToLowerInvariant());
 
                 if (userdata.Rating.HasValue)
                 {

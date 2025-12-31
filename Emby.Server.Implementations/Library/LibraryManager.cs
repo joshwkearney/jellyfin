@@ -34,14 +34,11 @@ using MediaBrowser.Controller.IO;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.LiveTv;
 using MediaBrowser.Controller.MediaEncoding;
-using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Controller.Persistence;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Resolvers;
 using MediaBrowser.Controller.Sorting;
-using MediaBrowser.Controller.Trickplay;
 using MediaBrowser.Model.Configuration;
-using MediaBrowser.Model.Dlna;
 using MediaBrowser.Model.Drawing;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
@@ -2910,19 +2907,21 @@ namespace Emby.Server.Implementations.Library
             return path;
         }
 
-        public IReadOnlyList<PersonInfo> GetPeople(InternalPeopleQuery query)
+        public Task<IReadOnlyList<PersonInfo>> GetPeopleAsync(InternalPeopleQuery query, CancellationToken token = default)
         {
-            return _peopleRepository.GetPeople(query);
+            return _peopleRepository.GetPeopleAsync(query, token);
         }
 
-        public IReadOnlyList<PersonInfo> GetPeople(BaseItem item)
+        public async Task<IReadOnlyList<PersonInfo>> GetPeopleAsync(BaseItem item, CancellationToken token = default)
         {
             if (item.SupportsPeople)
             {
-                var people = GetPeople(new InternalPeopleQuery
-                {
-                    ItemId = item.Id
-                });
+                var people = await GetPeopleAsync(
+                    new InternalPeopleQuery
+                    {
+                        ItemId = item.Id
+                    },
+                    token).ConfigureAwait(false);
 
                 if (people.Count > 0)
                 {
@@ -2933,10 +2932,11 @@ namespace Emby.Server.Implementations.Library
             return [];
         }
 
-        public IReadOnlyList<Person> GetPeopleItems(InternalPeopleQuery query)
+        public async Task<IReadOnlyList<Person>> GetPeopleItemsAsync(InternalPeopleQuery query, CancellationToken token = default)
         {
-            return _peopleRepository.GetPeopleNames(query)
-            .Select(i =>
+            var names = await _peopleRepository.GetPeopleNamesAsync(query, token).ConfigureAwait(false);
+
+            return names.Select(i =>
             {
                 try
                 {
@@ -2953,18 +2953,18 @@ namespace Emby.Server.Implementations.Library
             .ToList()!; // null values are filtered out
         }
 
-        public IReadOnlyList<string> GetPeopleNames(InternalPeopleQuery query)
+        public Task<IReadOnlyList<string>> GetPeopleNamesAsync(InternalPeopleQuery query, CancellationToken token = default)
         {
-            return _peopleRepository.GetPeopleNames(query);
+            return _peopleRepository.GetPeopleNamesAsync(query, token);
         }
 
-        public void UpdatePeople(BaseItem item, List<PersonInfo> people)
+        public async Task UpdatePeopleAsync(BaseItem item, List<PersonInfo> people, CancellationToken token = default)
         {
-            UpdatePeopleAsync(item, people, CancellationToken.None).GetAwaiter().GetResult();
+            await UpdatePeopleAsync(item, people, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task UpdatePeopleAsync(BaseItem item, IReadOnlyList<PersonInfo> people, CancellationToken cancellationToken)
+        public async Task UpdatePeopleAsync(BaseItem item, IReadOnlyList<PersonInfo> people, CancellationToken token = default)
         {
             if (!item.SupportsPeople)
             {
@@ -2974,8 +2974,9 @@ namespace Emby.Server.Implementations.Library
             if (people is not null)
             {
                 people = people.Where(e => e is not null).ToArray();
-                _peopleRepository.UpdatePeople(item.Id, people);
-                await SavePeopleMetadataAsync(people, cancellationToken).ConfigureAwait(false);
+
+                await _peopleRepository.UpdatePeopleAsync(item.Id, people, token).ConfigureAwait(false);
+                await SavePeopleMetadataAsync(people, token).ConfigureAwait(false);
             }
         }
 

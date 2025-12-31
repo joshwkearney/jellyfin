@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Jellyfin.Api.Extensions;
+using System.Threading;
+using System.Threading.Tasks;
 using Jellyfin.Api.Helpers;
 using Jellyfin.Api.ModelBinders;
 using Jellyfin.Data.Enums;
@@ -60,15 +61,17 @@ public class MoviesController : BaseJellyfinApiController
     /// <param name="fields">Optional. The fields to return.</param>
     /// <param name="categoryLimit">The max number of categories to return.</param>
     /// <param name="itemLimit">The max number of items to return per category.</param>
+    /// <param name="token">The cancellation token.</param>
     /// <response code="200">Movie recommendations returned.</response>
     /// <returns>The list of movie recommendations.</returns>
     [HttpGet("Recommendations")]
-    public ActionResult<IEnumerable<RecommendationDto>> GetMovieRecommendations(
+    public async Task<ActionResult<IEnumerable<RecommendationDto>>> GetMovieRecommendations(
         [FromQuery] Guid? userId,
         [FromQuery] Guid? parentId,
         [FromQuery, ModelBinder(typeof(CommaDelimitedCollectionModelBinder))] ItemFields[] fields,
         [FromQuery] int categoryLimit = 5,
-        [FromQuery] int itemLimit = 8)
+        [FromQuery] int itemLimit = 8,
+        CancellationToken token = default)
     {
         userId = RequestHelpers.GetUserId(User, userId);
         var user = userId.IsNullOrEmpty()
@@ -121,13 +124,12 @@ public class MoviesController : BaseJellyfinApiController
         });
 
         var mostRecentMovies = recentlyPlayedMovies.Take(Math.Min(recentlyPlayedMovies.Count, 6)).ToList();
+
         // Get recently played directors
-        var recentDirectors = GetDirectors(mostRecentMovies)
-            .ToList();
+        var recentDirectors = await GetDirectorsAsync(mostRecentMovies, token).ConfigureAwait(false);
 
         // Get recently played actors
-        var recentActors = GetActors(mostRecentMovies)
-            .ToList();
+        var recentActors = await GetActorsAsync(mostRecentMovies, token).ConfigureAwait(false);
 
         var similarToRecentlyPlayed = GetSimilarTo(user, recentlyPlayedMovies, itemLimit, dtoOptions, RecommendationType.SimilarToRecentlyPlayed).GetEnumerator();
         var similarToLiked = GetSimilarTo(user, likedMovies, itemLimit, dtoOptions, RecommendationType.SimilarToLikedItem).GetEnumerator();
@@ -295,32 +297,36 @@ public class MoviesController : BaseJellyfinApiController
         }
     }
 
-    private IEnumerable<string> GetActors(IEnumerable<BaseItem> items)
+    private async Task<IReadOnlyList<string>> GetActorsAsync(IEnumerable<BaseItem> items, CancellationToken token)
     {
-        var people = _libraryManager.GetPeople(new InternalPeopleQuery(Array.Empty<string>(), new[] { PersonType.Director })
+        var query = new InternalPeopleQuery([], [PersonType.Director])
         {
             MaxListOrder = 3
-        });
+        };
 
+        var people = await _libraryManager.GetPeopleAsync(query, token).ConfigureAwait(false);
         var itemIds = items.Select(i => i.Id).ToList();
 
         return people
             .Where(i => itemIds.Contains(i.ItemId))
             .Select(i => i.Name)
-            .DistinctNames();
+            .DistinctNames()
+            .ToList();
     }
 
-    private IEnumerable<string> GetDirectors(IEnumerable<BaseItem> items)
+    private async Task<IReadOnlyList<string>> GetDirectorsAsync(IEnumerable<BaseItem> items, CancellationToken token)
     {
-        var people = _libraryManager.GetPeople(new InternalPeopleQuery(
-            new[] { PersonType.Director },
-            Array.Empty<string>()));
+        var query = new InternalPeopleQuery(
+            [PersonType.Director],
+            []);
 
+        var people = await _libraryManager.GetPeopleAsync(query, token).ConfigureAwait(false);
         var itemIds = items.Select(i => i.Id).ToList();
 
         return people
             .Where(i => itemIds.Contains(i.ItemId))
             .Select(i => i.Name)
-            .DistinctNames();
+            .DistinctNames()
+            .ToList();
     }
 }

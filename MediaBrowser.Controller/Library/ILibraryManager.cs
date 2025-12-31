@@ -491,29 +491,34 @@ namespace MediaBrowser.Controller.Library
         /// Gets the people.
         /// </summary>
         /// <param name="item">The item.</param>
+        /// <param name="token">The <see cref="CancellationToken"/>.</param>
         /// <returns>List&lt;PersonInfo&gt;.</returns>
-        IReadOnlyList<PersonInfo> GetPeople(BaseItem item);
+        Task<IReadOnlyList<PersonInfo>> GetPeopleAsync(BaseItem item, CancellationToken token = default);
 
         /// <summary>
         /// Gets the people.
         /// </summary>
         /// <param name="query">The query.</param>
+        /// <param name="token">The <see cref="CancellationToken"/>.</param>
         /// <returns>List&lt;PersonInfo&gt;.</returns>
-        IReadOnlyList<PersonInfo> GetPeople(InternalPeopleQuery query);
+        Task<IReadOnlyList<PersonInfo>> GetPeopleAsync(InternalPeopleQuery query, CancellationToken token = default);
 
         /// <summary>
         /// Gets the people items.
         /// </summary>
         /// <param name="query">The query.</param>
+        /// <param name="token">The <see cref="CancellationToken"/>.</param>
         /// <returns>List&lt;Person&gt;.</returns>
-        IReadOnlyList<Person> GetPeopleItems(InternalPeopleQuery query);
+        Task<IReadOnlyList<Person>> GetPeopleItemsAsync(InternalPeopleQuery query, CancellationToken token = default);
 
         /// <summary>
         /// Updates the people.
         /// </summary>
         /// <param name="item">The item.</param>
         /// <param name="people">The people.</param>
-        void UpdatePeople(BaseItem item, List<PersonInfo> people);
+        /// <param name="token">The <see cref="CancellationToken"/>.</param>
+        /// <returns>The async task.</returns>
+        Task UpdatePeopleAsync(BaseItem item, List<PersonInfo> people, CancellationToken token = default);
 
         /// <summary>
         /// Asynchronously updates the people.
@@ -522,7 +527,7 @@ namespace MediaBrowser.Controller.Library
         /// <param name="people">The people.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The async task.</returns>
-        Task UpdatePeopleAsync(BaseItem item, IReadOnlyList<PersonInfo> people, CancellationToken cancellationToken);
+        Task UpdatePeopleAsync(BaseItem item, IReadOnlyList<PersonInfo> people, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets the item ids.
@@ -535,8 +540,9 @@ namespace MediaBrowser.Controller.Library
         /// Gets the people names.
         /// </summary>
         /// <param name="query">The query.</param>
+        /// <param name="token">The <see cref="CancellationToken"/>.</param>
         /// <returns>List&lt;System.String&gt;.</returns>
-        IReadOnlyList<string> GetPeopleNames(InternalPeopleQuery query);
+        Task<IReadOnlyList<string>> GetPeopleNamesAsync(InternalPeopleQuery query, CancellationToken token = default);
 
         /// <summary>
         /// Queries the items.
